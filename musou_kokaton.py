@@ -260,8 +260,7 @@ class Shield(pg.sprite.Sprite):
         # 手順1: 空のSurfaceを生成
         width = 20
         height = bird.rect.height * 2
-        self.image = pg.Surface((width, height))
-        self.image.set_colorkey((0, 0, 0)) # 背景を透過（黒くなるのを防ぐ）
+        self.image = pg.Surface((width, height), pg.SRCALPHA)
         
         # 手順2: 青い矩形をdraw
         pg.draw.rect(self.image, (0, 0, 255), (0, 0, width, height))
