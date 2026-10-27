@@ -1,7 +1,7 @@
 import math
 import os
 import random
-import sys
+import sys                                 
 import time
 import pygame as pg
 
@@ -88,7 +88,7 @@ class Bird(pg.sprite.Sprite):
         引数1 key_lst：押下キーの真理値リスト
         引数2 screen：画面Surface
         """
-        sum_mv = [0, 0]
+        sum_mv = [0, 0]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
         for k, mv in __class__.delta.items():
             if key_lst[k]:
                 sum_mv[0] += mv[0]
@@ -241,6 +241,40 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+class Shield(pg.sprite.Sprite):
+
+    def __init__(self, bird: Bird, life: int):
+
+        super().__init__()
+        self.life = life
+        
+        # 手順1: 空のSurfaceを生成
+        width = 20
+        height = bird.rect.height * 2
+        self.image = pg.Surface((width, height))
+        self.image.set_colorkey((0, 0, 0)) # 背景を透過（黒くなるのを防ぐ）
+        
+        # 手順2: 青い矩形をdraw
+        pg.draw.rect(self.image, (0, 0, 255), (0, 0, width, height))
+        
+        # 手順3 & 4: こうかとんの向きを取得し、角度を求める
+        vx, vy = bird.dire
+        angle = math.degrees(math.atan2(-vy, vx))
+        
+        # 手順5: 角度に合わせて回転させる
+        self.image = pg.transform.rotozoom(self.image, angle, 1.0)
+        self.rect = self.image.get_rect()
+        
+        # 手順6: こうかとんの1体分ずらした位置に配置
+        self.rect.centerx = bird.rect.centerx + bird.rect.width * vx
+        self.rect.centery = bird.rect.centery + bird.rect.height * vy
+
+    def update(self):
+
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+
 
 def main():
     pg.display.set_caption("真！こうかとん無双")
@@ -253,16 +287,24 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    shields = pg.sprite.Group() 
 
     tmr = 0
     clock = pg.time.Clock()
     while True:
         key_lst = pg.key.get_pressed()
+        
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                 beams.add(Beam(bird))
+            # 追加機能5：sキーを押したときの処理をここに入れる
+            if event.type == pg.KEYDOWN and event.key == pg.K_s:
+                if score.value > 50 and len(shields) == 0:
+                    shields.add(Shield(bird, 400)) # 発動時間400フレーム
+                    score.value -= 50              # スコアを50消費
+
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
@@ -289,6 +331,9 @@ def main():
             time.sleep(2)
             return
 
+        for bomb in pg.sprite.groupcollide(bombs, shields, True, False).keys():
+            exps.add(Explosion(bomb, 50)) 
+
         bird.update(key_lst, screen)
         beams.update()
         beams.draw(screen)
@@ -298,11 +343,12 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        shields.update()
+        shields.draw(screen)
         score.update(screen)
         pg.display.update()
         tmr += 1
         clock.tick(50)
-
 
 if __name__ == "__main__":
     pg.init()
