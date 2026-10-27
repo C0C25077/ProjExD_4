@@ -1,7 +1,7 @@
 import math
 import os
 import random
-import sys                                 
+import sys                                
 import time
 import pygame as pg
 
@@ -72,6 +72,8 @@ class Bird(pg.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = xy
         self.speed = 10
+        self.state = "normal"  # 状態（normal / hyper）
+        self.hyper_life = 0    # 発動時間
 
     def change_img(self, num: int, screen: pg.Surface):
         """
@@ -88,7 +90,7 @@ class Bird(pg.sprite.Sprite):
         引数1 key_lst：押下キーの真理値リスト
         引数2 screen：画面Surface
         """
-        sum_mv = [0, 0]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+        sum_mv = [0, 0]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
         for k, mv in __class__.delta.items():
             if key_lst[k]:
                 sum_mv[0] += mv[0]
@@ -98,7 +100,15 @@ class Bird(pg.sprite.Sprite):
             self.rect.move_ip(-self.speed*sum_mv[0], -self.speed*sum_mv[1])
         if not (sum_mv[0] == 0 and sum_mv[1] == 0):
             self.dire = tuple(sum_mv)
-            self.image = self.imgs[self.dire]
+        self.image = self.imgs[self.dire]
+
+        # 無敵状態（hyper）の処理
+        if self.state == "hyper":
+            self.image = pg.transform.laplacian(self.image)
+            self.hyper_life -= 1
+            if self.hyper_life < 0:
+                self.state = "normal"
+
         screen.blit(self.image, self.rect)
 
 
@@ -241,10 +251,9 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+
 class Shield(pg.sprite.Sprite):
-
     def __init__(self, bird: Bird, life: int):
-
         super().__init__()
         self.life = life
         
@@ -270,10 +279,11 @@ class Shield(pg.sprite.Sprite):
         self.rect.centery = bird.rect.centery + bird.rect.height * vy
 
     def update(self):
-
         self.life -= 1
         if self.life < 0:
             self.kill()
+
+
 class Life:
     """
     残機数を管理するクラス
@@ -302,13 +312,9 @@ class Life:
             screen.blit(self.image, (x, y))
 
 
-
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
-    bg_img = pg.image.load(f"fig/pg_bg.jpg")
-    score = Score()
-
     bg_img = pg.image.load(f"fig/pg_bg.jpg")
     score = Score()
     life = Life(3)  # 残機を3で開始
@@ -328,11 +334,16 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
-            # 追加機能5：sキーを押したときの処理をここに入れる
-            if event.type == pg.KEYDOWN and event.key == pg.K_s:
-                if score.value > 50 and len(shields) == 0:
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))
+                # 追加機能4：右Shiftキー押下かつスコアが100より大きい場合、無敵状態発動
+                if event.key == pg.K_RSHIFT and score.value > 100:
+                    bird.state = "hyper"
+                    bird.hyper_life = 500
+                    score.value -= 100
+                # 追加機能5：sキーを押したとき防御壁生成
+                if event.key == pg.K_s and score.value > 50 and len(shields) == 0:
                     shields.add(Shield(bird, 400)) # 発動時間400フレーム
                     score.value -= 50              # スコアを50消費
 
@@ -355,21 +366,26 @@ def main():
             exps.add(Explosion(bomb, 50))  # 爆発エフェクト
             score.value += 1  # 1点アップ
 
-        
+        # こうかとんと爆弾の衝突判定
         for bomb in pg.sprite.spritecollide(bird, bombs, True):
-            life.num -= 1  # 残機を1減らす
+            if bird.state == "hyper":
+                # 無敵状態：残機は減らず、爆風を起こしてスコア1点アップ
+                exps.add(Explosion(bomb, 50))
+                score.value += 1
+            else:
+                # 通常状態：残機を1減らす
+                life.num -= 1
+                exps.add(Explosion(bomb, 50))
+                if life.num <= 0:
+                    # 残機が0になったらゲームオーバー
+                    bird.change_img(8, screen)
+                    score.update(screen)
+                    life.update(screen)
+                    pg.display.update()
+                    time.sleep(2)
+                    return
 
-            if life.num <= 0:
-                # 残機が0になったらゲームオーバー
-                bird.change_img(8, screen)
-                score.update(screen)
-                life.update(screen)
-                pg.display.update()
-                time.sleep(2)
-                return
-
-        
-
+        # 防御壁と爆弾の衝突判定
         for bomb in pg.sprite.groupcollide(bombs, shields, True, False).keys():
             exps.add(Explosion(bomb, 50)) 
 
