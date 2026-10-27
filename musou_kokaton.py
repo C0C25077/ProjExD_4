@@ -280,6 +280,29 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+class Gravity(pg.sprite.Sprite):
+    """
+    画面全体を覆う重力場に関するクラス
+    """
+    def __init__(self, life: int):
+        """
+        重力場のSurfaceとRectを生成し，透明度を設定する
+        引数 life：発動時間（フレーム数）
+        """
+        super().__init__()
+        self.image = pg.Surface((WIDTH, HEIGHT))  # 画面全体サイズのSurface[cite: 3]
+        pg.draw.rect(self.image, (0, 0, 0), (0, 0, WIDTH, HEIGHT))  # 黒塗りの矩形[cite: 3]
+        self.image.set_alpha(128)  # 半透明度を設定（0:透明 ～ 255:不透明）[cite: 3]
+        self.rect = self.image.get_rect()
+        self.life = life  # 発動時間[cite: 1]
+
+    def update(self):
+        """
+        発動時間を1減算し，0未満になったらkillする
+        """
+        self.life -= 1  # 1減算[cite: 1]
+        if self.life < 0:
+            self.kill()  # 0未満で消滅[cite: 1]
 
 class Shield(pg.sprite.Sprite):
     def __init__(self, bird: Bird, life: int):
@@ -354,6 +377,7 @@ def main():
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
     shields = pg.sprite.Group() 
+    gravities = pg.sprite.Group()  # ★追加：重力場グループを作成[cite: 1]
 
     tmr = 0
     clock = pg.time.Clock()
@@ -383,6 +407,11 @@ def main():
                     EMP(emys, bombs, screen)
                     score.value -= 20  # 消費スコア20
 
+            if event.type == pg.KEYDOWN:
+        # 2. KEYDOWN の内側にインデントを入れて書く
+                if event.key == pg.K_RETURN and score.value > 200:
+                    gravities.add(Gravity(400))  # 重力場生成[cite: 1]
+                    score.value -= 200            # スコア消費[cite: 1]
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
@@ -424,6 +453,17 @@ def main():
         # 防御壁と爆弾の衝突判定
         for bomb in pg.sprite.groupcollide(bombs, shields, True, False).keys():
             exps.add(Explosion(bomb, 50)) 
+        # ★追加：重力場と敵機・爆弾の処理[cite: 1]
+        for gravity in gravities:
+            # 重力場内の敵機を撃墜・爆発・スコア加算[cite: 1]
+            for emy in pg.sprite.spritecollide(gravity, emys, True):
+                exps.add(Explosion(emy, 100))
+                score.value += 10
+            # 重力場内の爆弾を消滅・爆発・スコア加算[cite: 1]
+            for bomb in pg.sprite.spritecollide(gravity, bombs, True):
+                exps.add(Explosion(bomb, 50))
+                score.value += 1
+
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
             if bomb.state == "inactive":
                 continue  # 無効化された爆弾は起爆せずに消滅
@@ -440,6 +480,8 @@ def main():
         emys.draw(screen)
         bombs.update()
         bombs.draw(screen)
+        gravities.update()
+        gravities.draw(screen)
         exps.update()
         exps.draw(screen)
         shields.update()
